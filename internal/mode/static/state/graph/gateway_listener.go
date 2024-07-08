@@ -24,6 +24,8 @@ type Listener struct {
 	// Routes holds the GRPC/HTTPRoutes attached to the Listener.
 	// Only valid routes are attached.
 	Routes map[RouteKey]*L7Route
+	// L4Routes holds the TLSRoutes attached to the Listener
+	L4Routes map[L4RouteKey]*L4Route
 	// AllowedRouteLabelSelector is the label selector for this Listener's allowed routes, if defined.
 	AllowedRouteLabelSelector labels.Selector
 	// ResolvedSecret is the namespaced name of the Secret resolved for this listener.

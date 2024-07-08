@@ -55,12 +55,39 @@ const (
 	RouteTypeGRPC RouteType = "grpc"
 )
 
+// L4RouteKey is the unique identifier for a L4Route.
+type L4RouteKey struct {
+	// NamespacedName is the NamespacedName of the Route.
+	NamespacedName types.NamespacedName
+}
+
 // RouteKey is the unique identifier for a L7Route.
 type RouteKey struct {
 	// NamespacedName is the NamespacedName of the Route.
 	NamespacedName types.NamespacedName
 	// RouteType is the type of the Route.
 	RouteType RouteType
+}
+
+type L4Route struct {
+	// ParentRefs describe the references to the parents in a Route.
+	ParentRefs []ParentRef
+	// Source is the source Gateway API object of the Route.
+	Source client.Object
+	// Spec is the L7RouteSpec of the Route
+	Spec L4RouteSpec
+	// Attachable indicates if the Route is attachable to any Listener.
+	Attachable bool
+	// Valid indicates if the Route is valid.
+	Valid bool
+}
+
+type L4RouteSpec struct {
+	// Hostnames defines a set of hostnames used to select a Route used to process the request.
+	Hostnames []v1.Hostname
+	// FIXME (sarthyparty): change to slice of BackendRef, as for now we are only supporting one BackendRef.
+	// We will eventually support multiple BackendRef https://github.com/nginxinc/nginx-gateway-fabric/issues/2184
+	BackendRef BackendRef
 }
 
 // L7Route is the generic type for the layer 7 routes, HTTPRoute and GRPCRoute.

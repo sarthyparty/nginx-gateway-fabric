@@ -9,6 +9,7 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	v1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -41,8 +42,59 @@ func BuildConfiguration(
 		return Configuration{Version: configVersion}
 	}
 
+	fmt.Println("hi")
+	// local testing start (will remove when PR is in final stages)
+	l4routes := make(map[graph.L4RouteKey]*graph.L4Route)
+
+	nsname := types.NamespacedName{
+		Namespace: "default",
+		Name:      "secure-app",
+	}
+
+	key := graph.L4RouteKey{NamespacedName: nsname}
+	l4routes[key] = &graph.L4Route{
+		Spec: graph.L4RouteSpec{
+			Hostnames: []v1.Hostname{"app.example.com", "cafe.example.com"},
+			BackendRef: graph.BackendRef{
+				SvcNsName: nsname,
+				ServicePort: apiv1.ServicePort{
+					Name:        "https",
+					Protocol:    "TCP",
+					AppProtocol: nil,
+					Port:        8443,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 8443,
+					},
+				},
+				Valid: true,
+			},
+		},
+		Valid: true,
+	}
+	g.Gateway.Listeners = append(g.Gateway.Listeners, &graph.Listener{
+		Name: "testingListener",
+		Source: v1.Listener{
+			Protocol: v1.TLSProtocolType,
+			Port:     443,
+		},
+		Routes:                    make(map[graph.RouteKey]*graph.L7Route),
+		L4Routes:                  l4routes,
+		AllowedRouteLabelSelector: nil,
+		ResolvedSecret:            nil,
+		Conditions:                nil,
+		SupportedKinds:            nil,
+		Valid:                     true,
+		Attachable:                false,
+	})
+	// local testing end
+
+	fmt.Println("hi")
+
 	upstreams := buildUpstreams(ctx, g.Gateway.Listeners, serviceResolver)
 	httpServers, sslServers := buildServers(g, generator)
+	passthroughServers := buildPassthroughServers(g)
+	streamUpstreams := buildStreamUpstreams(ctx, g.Gateway.Listeners, serviceResolver)
 	backendGroups := buildBackendGroups(append(httpServers, sslServers...))
 	keyPairs := buildSSLKeyPairs(g.ReferencedSecrets, g.Gateway.Listeners)
 	certBundles := buildCertBundles(g.ReferencedCaCertConfigMaps, backendGroups)
@@ -50,18 +102,106 @@ func BuildConfiguration(
 	baseHTTPConfig := buildBaseHTTPConfig(g)
 
 	config := Configuration{
-		HTTPServers:    httpServers,
-		SSLServers:     sslServers,
-		Upstreams:      upstreams,
-		BackendGroups:  backendGroups,
-		SSLKeyPairs:    keyPairs,
-		Version:        configVersion,
-		CertBundles:    certBundles,
-		Telemetry:      telemetry,
-		BaseHTTPConfig: baseHTTPConfig,
+		HTTPServers:           httpServers,
+		SSLServers:            sslServers,
+		TLSPassthroughServers: passthroughServers,
+		Upstreams:             upstreams,
+		StreamUpstreams:       streamUpstreams,
+		BackendGroups:         backendGroups,
+		SSLKeyPairs:           keyPairs,
+		Version:               configVersion,
+		CertBundles:           certBundles,
+		Telemetry:             telemetry,
+		BaseHTTPConfig:        baseHTTPConfig,
 	}
 
 	return config
+}
+
+// buildPassthroughServers builds TLSPassthroughServers from TLSRoutes attaches to listeners.
+func buildPassthroughServers(g *graph.Graph) []Layer4VirtualServer {
+	passthroughServers := []Layer4VirtualServer{}
+	for _, l := range g.Gateway.Listeners {
+		if !l.Valid {
+			continue
+		}
+		if l.Source.Protocol == v1.TLSProtocolType {
+			for _, r := range l.L4Routes {
+				if !r.Valid {
+					continue
+				}
+				for _, h := range r.Spec.Hostnames {
+					passthroughServers = append(passthroughServers, Layer4VirtualServer{
+						Hostname:     string(h),
+						UpstreamName: r.Spec.BackendRef.ServicePortReference(),
+						Port:         int32(l.Source.Port),
+					})
+				}
+			}
+		}
+	}
+
+	return passthroughServers
+}
+
+// buildStreamUpstreams builds all the upstreams to be in the nginx stream block.
+func buildStreamUpstreams(
+	ctx context.Context,
+	listeners []*graph.Listener,
+	resolver resolver.ServiceResolver,
+) []Upstream {
+	// There can be duplicate upstreams if multiple routes reference the same upstream.
+	// We use a map to deduplicate them.
+	uniqueUpstreams := make(map[string]Upstream)
+
+	for _, l := range listeners {
+		if !l.Valid || l.Source.Protocol != v1.TLSProtocolType {
+			continue
+		}
+
+		for _, route := range l.L4Routes {
+			if !route.Valid {
+				continue
+			}
+
+			br := route.Spec.BackendRef
+
+			if !br.Valid {
+				continue
+			}
+
+			upstreamName := br.ServicePortReference()
+			_, exist := uniqueUpstreams[upstreamName]
+
+			if exist {
+				continue
+			}
+
+			var errMsg string
+
+			eps, err := resolver.Resolve(ctx, br.SvcNsName, br.ServicePort)
+			if err != nil {
+				errMsg = err.Error()
+			}
+
+			uniqueUpstreams[upstreamName] = Upstream{
+				Name:      upstreamName,
+				Endpoints: eps,
+				ErrorMsg:  errMsg,
+			}
+		}
+	}
+
+	if len(uniqueUpstreams) == 0 {
+		return nil
+	}
+
+	upstreams := make([]Upstream, 0, len(uniqueUpstreams))
+
+	for _, up := range uniqueUpstreams {
+		upstreams = append(upstreams, up)
+	}
+	return upstreams
 }
 
 // buildSSLKeyPairs builds the SSLKeyPairs from the Secrets. It will only include Secrets that are referenced by
@@ -211,6 +351,9 @@ func buildServers(g *graph.Graph, generator policies.ConfigGenerator) (http, ssl
 	}
 
 	for _, l := range g.Gateway.Listeners {
+		if l.Source.Protocol == v1.TLSProtocolType {
+			continue
+		}
 		if l.Valid {
 			rules := rulesForProtocol[l.Source.Protocol][l.Source.Port]
 			if rules == nil {
