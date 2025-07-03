@@ -62,7 +62,7 @@ metadata:
 ### 2. Kubernetes Stores Resources
 
 - Gateway, HTTPRoute, Service resources stored in etcd
-- Kubernetes API Server notifies watchers of changes
+- Kubernetes API Server notifies controllers(watchers) of changes
 
 ### 3. NGF Controller Processes Changes
 
