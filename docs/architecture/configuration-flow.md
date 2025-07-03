@@ -1,6 +1,6 @@
 # Configuration Flow
 
-This diagram shows how Gateway API resources become NGINX configurations.
+This diagram shows how Gateway API resources map to NGINX configurations.
 
 ## Simple Overview
 
