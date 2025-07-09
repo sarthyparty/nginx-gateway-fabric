@@ -317,8 +317,14 @@ func (p *NginxProvisioner) buildNginxConfigMaps(
 		logLevel = string(*nProxyCfg.Logging.ErrorLevel)
 	}
 
+	workerConnections := int32(1024)
+	if nProxyCfg != nil && nProxyCfg.WorkerConnections != nil {
+		workerConnections = *nProxyCfg.WorkerConnections
+	}
+
 	mainFields := map[string]interface{}{
-		"ErrorLevel": logLevel,
+		"ErrorLevel":        logLevel,
+		"WorkerConnections": workerConnections,
 	}
 
 	bootstrapCM := &corev1.ConfigMap{
