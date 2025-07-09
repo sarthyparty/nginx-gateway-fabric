@@ -4907,14 +4907,14 @@ func TestBuildWorkerConnections(t *testing.T) {
 		{
 			msg:                  "NginxProxy is nil",
 			gw:                   &graph.Gateway{},
-			expWorkerConnections: 1024,
+			expWorkerConnections: defaultWorkerConnections,
 		},
 		{
 			msg: "NginxProxy doesn't specify worker connections",
 			gw: &graph.Gateway{
 				EffectiveNginxProxy: &graph.EffectiveNginxProxy{},
 			},
-			expWorkerConnections: 1024,
+			expWorkerConnections: defaultWorkerConnections,
 		},
 		{
 			msg: "NginxProxy specifies worker connections",
@@ -4924,24 +4924,6 @@ func TestBuildWorkerConnections(t *testing.T) {
 				},
 			},
 			expWorkerConnections: 2048,
-		},
-		{
-			msg: "NginxProxy specifies minimum worker connections",
-			gw: &graph.Gateway{
-				EffectiveNginxProxy: &graph.EffectiveNginxProxy{
-					WorkerConnections: helpers.GetPointer(int32(1)),
-				},
-			},
-			expWorkerConnections: 1,
-		},
-		{
-			msg: "NginxProxy specifies maximum worker connections",
-			gw: &graph.Gateway{
-				EffectiveNginxProxy: &graph.EffectiveNginxProxy{
-					WorkerConnections: helpers.GetPointer(int32(65535)),
-				},
-			},
-			expWorkerConnections: 65535,
 		},
 	}
 

@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	wildcardHostname     = "~^"
-	alpineSSLRootCAPath  = "/etc/ssl/cert.pem"
-	defaultErrorLogLevel = "info"
+	wildcardHostname         = "~^"
+	alpineSSLRootCAPath      = "/etc/ssl/cert.pem"
+	defaultErrorLogLevel     = "info"
+	defaultWorkerConnections = int32(1024)
 )
 
 // BuildConfiguration builds the Configuration from the Graph.
@@ -1107,8 +1108,6 @@ func buildLogging(gateway *graph.Gateway) Logging {
 }
 
 func buildWorkerConnections(gateway *graph.Gateway) int32 {
-	defaultWorkerConnections := int32(1024)
-
 	if gateway == nil || gateway.EffectiveNginxProxy == nil {
 		return defaultWorkerConnections
 	}
