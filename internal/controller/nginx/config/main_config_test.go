@@ -147,3 +147,55 @@ func TestGenerateMgmtFiles_Panic(t *testing.T) {
 		gen.generateMgmtFiles(dataplane.Configuration{})
 	}).To(Panic())
 }
+
+func TestExecuteMainConfig_WorkerConnections(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		expWorkerConnections string
+		conf                 dataplane.Configuration
+	}{
+		{
+			name: "default worker connections",
+			conf: dataplane.Configuration{
+				WorkerConnections: 1024,
+			},
+			expWorkerConnections: "worker_connections 1024;",
+		},
+		{
+			name: "custom worker connections",
+			conf: dataplane.Configuration{
+				WorkerConnections: 2048,
+			},
+			expWorkerConnections: "worker_connections 2048;",
+		},
+		{
+			name: "minimum worker connections",
+			conf: dataplane.Configuration{
+				WorkerConnections: 1,
+			},
+			expWorkerConnections: "worker_connections 1;",
+		},
+		{
+			name: "maximum worker connections",
+			conf: dataplane.Configuration{
+				WorkerConnections: 65535,
+			},
+			expWorkerConnections: "worker_connections 65535;",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			res := executeMainConfig(test.conf)
+			g.Expect(res).To(HaveLen(1))
+			g.Expect(res[0].dest).To(Equal(mainIncludesConfigFile))
+			g.Expect(string(res[0].data)).To(ContainSubstring(test.expWorkerConnections))
+			g.Expect(string(res[0].data)).To(ContainSubstring("events {"))
+		})
+	}
+}
