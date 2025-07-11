@@ -50,8 +50,12 @@ The control plane requires these Kubernetes API permissions:
 - **ServiceAccounts**: Create, update, delete, list, get, watch
 - **Namespaces, Pods**: Get, list, watch
 - **Events**: Create, patch
-- **Gateway API resources**: Full access
-- **Custom resources** (NginxGateway, NginxProxy): Full access
+- **EndpointSlices**: List, watch
+- **Gateway API resources**: List, watch (read-only) + update status subresources only
+- **NGF Custom resources**: Get, list, watch (read-only) + update status subresources only
+- **Leases**: Create, get, update (for leader election)
+- **CustomResourceDefinitions**: List, watch
+- **TokenReviews**: Create (for authentication)
 
 ## Data Plane
 
