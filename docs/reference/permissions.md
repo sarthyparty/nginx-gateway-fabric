@@ -18,9 +18,10 @@ NGINX Gateway Fabric uses a **split-plane architecture** where control and data 
 
 This split requires different security contexts because:
 
-- **Control plane** needs Kubernetes API access to manage resources but never handles user traffic
+- **Control plane** needs Kubernetes API access to manage data plane deployments but never handles user traffic
 - **Data plane** processes user traffic but never accesses Kubernetes APIs directly
-- Both planes communicate securely via TLS, eliminating the need for shared filesystem access or elevated privileges
+- **Secure communication**: Control plane sends NGINX configuration to data plane via gRPC over mTLS (port 8443)
+- **Isolated deployment**: Each plane runs in separate pods with independent security contexts
 
 ## Control Plane
 
@@ -160,4 +161,4 @@ The split-plane architecture enables a defense-in-depth security model:
 - **Read-only root**: Prevents runtime modifications to container filesystems
 - **Ephemeral storage**: Writable data uses temporary volumes, not persistent storage
 - **Least privilege RBAC**: Control plane gets only required Kubernetes permissions; data plane needs no RBAC
-- **Secure inter-plane communication**: TLS-encrypted gRPC between control and data planes
+- **Secure inter-plane communication**: mTLS-encrypted gRPC (TLS 1.3+) between control and data planes
