@@ -3,6 +3,7 @@ package graph
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/types"
@@ -75,12 +76,16 @@ func validateBackendTLSPolicy(
 	valid = true
 	ignored = false
 
-	// Note: Ancestor limit checking moved to addGatewaysForBackendTLSPolicies for per-gateway effectiveness tracking
-	// The policy may be partially effective (work for some gateways but not others due to ancestor limits)
+	// Ancestor limit handling is now done during gateway assignment phase, not validation
+	// if backendTLSPolicyAncestorsFull(backendTLSPolicy.Status.Ancestors, ctlrName) {
+	//	valid = false
+	//	ignored = true
+	//	return
+	// }
 
 	if err := validateBackendTLSHostname(backendTLSPolicy); err != nil {
 		valid = false
-		conds = append(conds, conditions.NewPolicyInvalid(fmt.Sprintf("invalid hostname: %s", err.Error())))
+		conds = append(conds, conditions.NewPolicyInvalid(err.Error()))
 	}
 
 	caCertRefs := backendTLSPolicy.Spec.Validation.CACertificateRefs
@@ -182,6 +187,109 @@ func validateBackendTLSWellKnownCACerts(btp *v1alpha3.BackendTLSPolicy) error {
 	return nil
 }
 
+// countNonNGFAncestors counts the number of non-NGF ancestors in policy status.
+func countNonNGFAncestors(policy *v1alpha3.BackendTLSPolicy, ctlrName string) int {
+	nonNGFCount := 0
+	for _, ancestor := range policy.Status.Ancestors {
+		if string(ancestor.ControllerName) != ctlrName {
+			nonNGFCount++
+		}
+	}
+	return nonNGFCount
+}
+
+// addPolicyAncestorLimitCondition adds or updates a PolicyAncestorLimitReached condition.
+func addPolicyAncestorLimitCondition(
+	conds []conditions.Condition,
+	policyName string,
+	policyType string,
+) []conditions.Condition {
+	const policyAncestorLimitReachedType = "PolicyAncestorLimitReached"
+
+	for i, condition := range conds {
+		if condition.Type == policyAncestorLimitReachedType {
+			if !strings.Contains(condition.Message, policyName) {
+				conds[i].Message = fmt.Sprintf("%s, %s %s", condition.Message, policyType, policyName)
+			}
+			return conds
+		}
+	}
+
+	newCondition := conditions.NewPolicyAncestorLimitReached()
+	newCondition.Message = fmt.Sprintf("%s %s %s", newCondition.Message, policyType, policyName)
+	conds = append(conds, newCondition)
+	return conds
+}
+
+// collectOrderedGateways collects gateways in spec order (services) then creation time order (gateways within service).
+func collectOrderedGateways(
+	policy *v1alpha3.BackendTLSPolicy,
+	services map[types.NamespacedName]*ReferencedService,
+	gateways map[types.NamespacedName]*Gateway,
+	existingNGFGatewayAncestors map[types.NamespacedName]struct{},
+) (existingGateways []types.NamespacedName, newGateways []types.NamespacedName) {
+	seenGateways := make(map[types.NamespacedName]struct{})
+
+	// Process services in spec order to maintain deterministic gateway ordering
+	for _, refs := range policy.Spec.TargetRefs {
+		if refs.Kind != kinds.Service {
+			continue
+		}
+
+		svcNsName := types.NamespacedName{
+			Namespace: policy.Namespace,
+			Name:      string(refs.Name),
+		}
+
+		referencedService, exists := services[svcNsName]
+		if !exists {
+			continue
+		}
+
+		// Add to ordered lists, categorizing existing vs new, skipping duplicates
+		for gateway := range referencedService.GatewayNsNames {
+			if _, seen := seenGateways[gateway]; seen {
+				continue
+			}
+			seenGateways[gateway] = struct{}{}
+			if _, exists := existingNGFGatewayAncestors[gateway]; exists {
+				existingGateways = append(existingGateways, gateway)
+			} else {
+				newGateways = append(newGateways, gateway)
+			}
+		}
+	}
+
+	sortGatewaysByCreationTime(existingGateways, gateways)
+	sortGatewaysByCreationTime(newGateways, gateways)
+
+	return existingGateways, newGateways
+}
+
+func extractExistingNGFGatewayAncestors(
+	backendTLSPolicy *v1alpha3.BackendTLSPolicy,
+	ctlrName string,
+) map[types.NamespacedName]struct{} {
+	existingNGFGatewayAncestors := make(map[types.NamespacedName]struct{})
+
+	for _, ancestor := range backendTLSPolicy.Status.Ancestors {
+		if string(ancestor.ControllerName) != ctlrName {
+			continue
+		}
+
+		if ancestor.AncestorRef.Kind != nil && *ancestor.AncestorRef.Kind == v1.Kind(kinds.Gateway) &&
+			ancestor.AncestorRef.Namespace != nil {
+			gatewayNsName := types.NamespacedName{
+				Namespace: string(*ancestor.AncestorRef.Namespace),
+				Name:      string(ancestor.AncestorRef.Name),
+			}
+			existingNGFGatewayAncestors[gatewayNsName] = struct{}{}
+		}
+	}
+
+	return existingNGFGatewayAncestors
+}
+
 func addGatewaysForBackendTLSPolicies(
 	backendTLSPolicies map[types.NamespacedName]*BackendTLSPolicy,
 	services map[types.NamespacedName]*ReferencedService,
@@ -190,53 +298,37 @@ func addGatewaysForBackendTLSPolicies(
 	logger logr.Logger,
 ) {
 	for _, backendTLSPolicy := range backendTLSPolicies {
-		potentialGateways := make(map[types.NamespacedName]struct{})
+		existingNGFGatewayAncestors := extractExistingNGFGatewayAncestors(backendTLSPolicy.Source, ctlrName)
+		existingGateways, newGateways := collectOrderedGateways(
+			backendTLSPolicy.Source, services, gateways, existingNGFGatewayAncestors)
 
-		// First, collect all potential gateways for this policy
-		for _, refs := range backendTLSPolicy.Source.Spec.TargetRefs {
-			if refs.Kind != kinds.Service {
-				continue
-			}
+		existingGateways = append(existingGateways, newGateways...)
+		orderedGateways := existingGateways
 
-			for svcNsName, referencedServices := range services {
-				if svcNsName.Name != string(refs.Name) {
-					continue
-				}
+		ancestorCount := countNonNGFAncestors(backendTLSPolicy.Source, ctlrName)
 
-				for gateway := range referencedServices.GatewayNsNames {
-					potentialGateways[gateway] = struct{}{}
-				}
-			}
-		}
-
-		// Now check each potential gateway against ancestor limits
-		for gatewayNsName := range potentialGateways {
-			// Create a proposed ancestor reference for this gateway
-			proposedAncestor := createParentReference(v1.GroupName, kinds.Gateway, gatewayNsName)
-
-			// Check ancestor limit for BackendTLS policy
-			isFull := backendTLSPolicyAncestorsFull(
-				backendTLSPolicy.Source.Status.Ancestors,
-				ctlrName,
-			)
-
-			if isFull {
+		// Process each gateway, respecting ancestor limits
+		for _, gatewayNsName := range orderedGateways {
+			// Check if adding this gateway would exceed the ancestor limit
+			if ancestorCount >= maxAncestors {
 				policyName := backendTLSPolicy.Source.Namespace + "/" + backendTLSPolicy.Source.Name
+				proposedAncestor := createParentReference(v1.GroupName, kinds.Gateway, gatewayNsName)
 				gatewayName := getAncestorName(proposedAncestor)
-				gateway, ok := gateways[gatewayNsName]
-				if ok {
-					gateway.Conditions = append(gateway.Conditions, conditions.NewPolicyAncestorLimitReached(policyName))
+
+				if gateway, ok := gateways[gatewayNsName]; ok {
+					gateway.Conditions = addPolicyAncestorLimitCondition(gateway.Conditions, policyName, kinds.BackendTLSPolicy)
 				} else {
-					// Not found in the graph, log the issue. I don't think this should happen.
-					logger.Info("Gateway not found in the graph", "policy", policyName, "ancestor", gatewayName)
+					// This should never happen, but we'll log it if it does
+					logger.Error(fmt.Errorf("gateway not found in the graph"),
+						"Gateway not found in the graph", "policy", policyName, "ancestor", gatewayName)
 				}
 
 				LogAncestorLimitReached(logger, policyName, "BackendTLSPolicy", gatewayName)
-
 				continue
 			}
 
-			// Gateway can be effectively used by this policy
+			ancestorCount++
+
 			backendTLSPolicy.Gateways = append(backendTLSPolicy.Gateways, gatewayNsName)
 		}
 	}

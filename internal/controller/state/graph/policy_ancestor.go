@@ -1,11 +1,12 @@
 package graph
 
 import (
+	"sort"
+
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/types"
 	v1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
-
-	"github.com/go-logr/logr"
 
 	"github.com/nginx/nginx-gateway-fabric/v2/internal/controller/nginx/config/policies"
 	"github.com/nginx/nginx-gateway-fabric/v2/internal/framework/helpers"
@@ -129,4 +130,31 @@ func getPolicyKind(policy policies.Policy) string {
 		policyKind = objKind.GroupVersionKind().Kind
 	}
 	return policyKind
+}
+
+// compareNamespacedNames compares two NamespacedName objects lexicographically.
+func compareNamespacedNames(a, b types.NamespacedName) bool {
+	if a.Namespace == b.Namespace {
+		return a.Name < b.Name
+	}
+	return a.Namespace < b.Namespace
+}
+
+// sortGatewaysByCreationTime sorts gateways by creation timestamp, falling back to namespace/name for determinism.
+func sortGatewaysByCreationTime(gatewayNames []types.NamespacedName, gateways map[types.NamespacedName]*Gateway) {
+	sort.SliceStable(gatewayNames, func(i, j int) bool {
+		gi := gateways[gatewayNames[i]]
+		gj := gateways[gatewayNames[j]]
+
+		if gi == nil || gj == nil {
+			return compareNamespacedNames(gatewayNames[i], gatewayNames[j])
+		}
+
+		cti := gi.Source.CreationTimestamp.Time
+		ctj := gj.Source.CreationTimestamp.Time
+		if cti.Equal(ctj) {
+			return compareNamespacedNames(gatewayNames[i], gatewayNames[j])
+		}
+		return cti.Before(ctj)
+	})
 }

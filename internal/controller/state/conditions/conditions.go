@@ -145,8 +145,8 @@ const (
 
 	// PolicyMessageAncestorLimitReached is a message used with PolicyReasonAncestorLimitReached
 	// when a policy cannot be applied due to the 16 ancestor limit being reached.
-	PolicyMessageAncestorLimitReached = "Policy cannot be applied because the ancestor status list " +
-		"has reached the maximum size of 16"
+	PolicyMessageAncestorLimitReached = "Policies cannot be applied because the ancestor status list " +
+		"has reached the maximum size of 16. The following policies have been ignored:"
 )
 
 // Condition defines a condition to be reported in the status of resources.
@@ -979,7 +979,7 @@ func NewPolicyTargetNotFound(msg string) Condition {
 
 // NewPolicyAncestorLimitReached returns a Condition that indicates that the Policy is not accepted because
 // the ancestor status list has reached the maximum size of 16.
-func NewPolicyAncestorLimitReached(_ string) Condition {
+func NewPolicyAncestorLimitReached() Condition {
 	return Condition{
 		Type:    string(v1alpha2.PolicyConditionAccepted),
 		Status:  metav1.ConditionFalse,

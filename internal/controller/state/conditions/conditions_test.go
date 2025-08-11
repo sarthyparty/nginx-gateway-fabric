@@ -151,8 +151,7 @@ func TestNewPolicyAncestorLimitReached(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	policyName := "test-policy"
-	condition := NewPolicyAncestorLimitReached(policyName)
+	condition := NewPolicyAncestorLimitReached()
 
 	g.Expect(condition.Type).To(Equal(string(v1alpha2.PolicyConditionAccepted)))
 	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))

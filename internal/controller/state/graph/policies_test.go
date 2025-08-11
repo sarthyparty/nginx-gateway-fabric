@@ -731,6 +731,46 @@ func TestAttachPolicyToService(t *testing.T) {
 			},
 		},
 		{
+			name: "attachment; existing gateway from policy status processed first",
+			policy: &Policy{
+				Source:             createPolicyWithExistingGatewayStatus(gwNsname, "ctlr"),
+				InvalidForGateways: map[types.NamespacedName]struct{}{},
+			},
+			svc: &ReferencedService{
+				GatewayNsNames: map[types.NamespacedName]struct{}{
+					gwNsname:  {}, // This gateway exists in policy status (existing)
+					gw2Nsname: {}, // This gateway is new
+				},
+			},
+			gws: map[types.NamespacedName]*Gateway{
+				gwNsname: {
+					Source: &v1.Gateway{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      gwNsname.Name,
+							Namespace: gwNsname.Namespace,
+						},
+					},
+					Valid: true,
+				},
+				gw2Nsname: {
+					Source: &v1.Gateway{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      gw2Nsname.Name,
+							Namespace: gw2Nsname.Namespace,
+						},
+					},
+					Valid: true,
+				},
+			},
+			expAttached: true,
+			// Only new gateway should be added to ancestors, existing one already exists in policy status
+			expAncestors: []PolicyAncestor{
+				{
+					Ancestor: getGatewayParentRef(gw2Nsname), // Only new gateway gets added
+				},
+			},
+		},
+		{
 			name: "attachment; ancestor doesn't exist so add it",
 			policy: &Policy{
 				Source: &policiesfakes.FakePolicy{},
@@ -2319,4 +2359,26 @@ func (s *testNGFLogSink) WithValues(_ ...interface{}) logr.LogSink {
 
 func (s *testNGFLogSink) WithName(_ string) logr.LogSink {
 	return s
+}
+
+// createPolicyWithExistingGatewayStatus creates a fake policy with a gateway in its status ancestors.
+func createPolicyWithExistingGatewayStatus(gatewayNsName types.NamespacedName, controllerName string) policies.Policy {
+	fakePolicy := &policiesfakes.FakePolicy{
+		GetPolicyStatusStub: func() v1alpha2.PolicyStatus {
+			return v1alpha2.PolicyStatus{
+				Ancestors: []v1alpha2.PolicyAncestorStatus{
+					{
+						ControllerName: v1.GatewayController(controllerName),
+						AncestorRef: v1.ParentReference{
+							Group:     helpers.GetPointer[v1.Group](v1.GroupName),
+							Kind:      helpers.GetPointer[v1.Kind](kinds.Gateway),
+							Namespace: (*v1.Namespace)(&gatewayNsName.Namespace),
+							Name:      v1.ObjectName(gatewayNsName.Name),
+						},
+					},
+				},
+			}
+		},
+	}
+	return fakePolicy
 }
