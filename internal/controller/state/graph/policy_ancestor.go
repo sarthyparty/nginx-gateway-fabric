@@ -6,7 +6,6 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/types"
 	v1 "sigs.k8s.io/gateway-api/apis/v1"
-	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/nginx/nginx-gateway-fabric/v2/internal/controller/nginx/config/policies"
 	"github.com/nginx/nginx-gateway-fabric/v2/internal/framework/helpers"
@@ -17,27 +16,6 @@ const maxAncestors = 16
 // LogAncestorLimitReached logs when a policy ancestor limit is reached.
 func LogAncestorLimitReached(logger logr.Logger, policyName, policyKind, ancestorName string) {
 	logger.Info("Policy ancestor limit reached", "policy", policyName, "policyKind", policyKind, "ancestor", ancestorName)
-}
-
-// backendTLSPolicyAncestorsFull returns whether or not an ancestor list is full. A list is not full when:
-// - the number of current ancestors is less than the maximum allowed
-// - an entry for an NGF managed resource already exists in the ancestor list. This means that we are overwriting
-// that status entry with the current status entry, since there is only one ancestor (Gateway) for this policy.
-func backendTLSPolicyAncestorsFull(
-	ancestors []v1alpha2.PolicyAncestorStatus,
-	ctlrName string,
-) bool {
-	if len(ancestors) < maxAncestors {
-		return false
-	}
-
-	for _, ancestor := range ancestors {
-		if string(ancestor.ControllerName) == ctlrName {
-			return false
-		}
-	}
-
-	return true
 }
 
 // ngfPolicyAncestorsFull returns whether or not an ancestor list is full. A list is full when

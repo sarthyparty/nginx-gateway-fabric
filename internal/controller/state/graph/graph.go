@@ -239,7 +239,6 @@ func BuildGraph(
 		state.BackendTLSPolicies,
 		configMapResolver,
 		secretResolver,
-		controllerName,
 		gws,
 	)
 

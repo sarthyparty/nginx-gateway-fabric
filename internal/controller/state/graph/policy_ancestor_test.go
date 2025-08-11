@@ -12,53 +12,6 @@ import (
 	"github.com/nginx/nginx-gateway-fabric/v2/internal/framework/kinds"
 )
 
-func TestBackendTLSPolicyAncestorsFull(t *testing.T) {
-	t.Parallel()
-	createCurStatus := func(numAncestors int, ctlrName string) []v1alpha2.PolicyAncestorStatus {
-		statuses := make([]v1alpha2.PolicyAncestorStatus, 0, numAncestors)
-
-		for range numAncestors {
-			statuses = append(statuses, v1alpha2.PolicyAncestorStatus{
-				ControllerName: v1.GatewayController(ctlrName),
-			})
-		}
-
-		return statuses
-	}
-
-	tests := []struct {
-		name      string
-		curStatus []v1alpha2.PolicyAncestorStatus
-		expFull   bool
-	}{
-		{
-			name:      "not full",
-			curStatus: createCurStatus(15, "controller"),
-			expFull:   false,
-		},
-		{
-			name:      "full; ancestor does not exist in current status",
-			curStatus: createCurStatus(16, "controller"),
-			expFull:   true,
-		},
-		{
-			name:      "full, but ancestor does exist in current status",
-			curStatus: createCurStatus(16, "nginx-gateway"),
-			expFull:   false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-
-			full := backendTLSPolicyAncestorsFull(test.curStatus, "nginx-gateway")
-			g.Expect(full).To(Equal(test.expFull))
-		})
-	}
-}
-
 func TestNGFPolicyAncestorsFull(t *testing.T) {
 	t.Parallel()
 	type ancestorConfig struct {

@@ -37,7 +37,6 @@ func processBackendTLSPolicies(
 	backendTLSPolicies map[types.NamespacedName]*v1alpha3.BackendTLSPolicy,
 	configMapResolver *configMapResolver,
 	secretResolver *secretResolver,
-	ctlrName string,
 	gateways map[types.NamespacedName]*Gateway,
 ) map[types.NamespacedName]*BackendTLSPolicy {
 	if len(backendTLSPolicies) == 0 || len(gateways) == 0 {
@@ -48,7 +47,7 @@ func processBackendTLSPolicies(
 	for nsname, backendTLSPolicy := range backendTLSPolicies {
 		var caCertRef types.NamespacedName
 
-		valid, ignored, conds := validateBackendTLSPolicy(backendTLSPolicy, configMapResolver, secretResolver, ctlrName)
+		valid, ignored, conds := validateBackendTLSPolicy(backendTLSPolicy, configMapResolver, secretResolver)
 
 		if valid && !ignored && backendTLSPolicy.Spec.Validation.CACertificateRefs != nil {
 			caCertRef = types.NamespacedName{
@@ -71,21 +70,13 @@ func validateBackendTLSPolicy(
 	backendTLSPolicy *v1alpha3.BackendTLSPolicy,
 	configMapResolver *configMapResolver,
 	secretResolver *secretResolver,
-	_ string,
 ) (valid, ignored bool, conds []conditions.Condition) {
 	valid = true
 	ignored = false
 
-	// Ancestor limit handling is now done during gateway assignment phase, not validation
-	// if backendTLSPolicyAncestorsFull(backendTLSPolicy.Status.Ancestors, ctlrName) {
-	//	valid = false
-	//	ignored = true
-	//	return
-	// }
-
 	if err := validateBackendTLSHostname(backendTLSPolicy); err != nil {
 		valid = false
-		conds = append(conds, conditions.NewPolicyInvalid(err.Error()))
+		conds = append(conds, conditions.NewPolicyInvalid(fmt.Sprintf("invalid hostname: %s", err.Error())))
 	}
 
 	caCertRefs := backendTLSPolicy.Spec.Validation.CACertificateRefs

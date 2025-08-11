@@ -80,7 +80,7 @@ func TestProcessBackendTLSPoliciesEmpty(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
 
-			processed := processBackendTLSPolicies(test.backendTLSPolicies, nil, nil, "test", test.gateways)
+			processed := processBackendTLSPolicies(test.backendTLSPolicies, nil, nil, test.gateways)
 
 			g.Expect(processed).To(Equal(test.expected))
 		})
@@ -477,7 +477,7 @@ func TestValidateBackendTLSPolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			valid, ignored, conds := validateBackendTLSPolicy(test.tlsPolicy, configMapResolver, secretMapResolver, "test")
+			valid, ignored, conds := validateBackendTLSPolicy(test.tlsPolicy, configMapResolver, secretMapResolver)
 
 			if !test.isValid && !test.ignored {
 				g.Expect(conds).To(HaveLen(1))
@@ -807,105 +807,6 @@ func TestAddGatewaysForBackendTLSPoliciesAncestorLimit(t *testing.T) {
 	g.Expect(logOutput).To(ContainSubstring("policy=test/btp-full-ancestors"))
 	g.Expect(logOutput).To(ContainSubstring("policyKind=BackendTLSPolicy"))
 	g.Expect(logOutput).To(ContainSubstring("ancestor=test/gateway1"))
-}
-
-func TestBackendTLSPolicyAncestorsFullFunc(t *testing.T) {
-	t.Parallel()
-
-	getAncestorRef := func(ctlrName, parentName string) v1alpha2.PolicyAncestorStatus {
-		return v1alpha2.PolicyAncestorStatus{
-			ControllerName: gatewayv1.GatewayController(ctlrName),
-			AncestorRef: gatewayv1.ParentReference{
-				Name:      gatewayv1.ObjectName(parentName),
-				Namespace: helpers.GetPointer(gatewayv1.Namespace("test")),
-				Group:     helpers.GetPointer[gatewayv1.Group](gatewayv1.GroupName),
-				Kind:      helpers.GetPointer[gatewayv1.Kind](kinds.Gateway),
-			},
-		}
-	}
-
-	tests := []struct {
-		name      string
-		ctlrName  string
-		ancestors []v1alpha2.PolicyAncestorStatus
-		expected  bool
-	}{
-		{
-			name:      "empty ancestors list",
-			ancestors: []v1alpha2.PolicyAncestorStatus{},
-			ctlrName:  "nginx-gateway",
-			expected:  false,
-		},
-		{
-			name: "less than 16 ancestors",
-			ancestors: []v1alpha2.PolicyAncestorStatus{
-				getAncestorRef("other-controller", "gateway1"),
-				getAncestorRef("other-controller", "gateway2"),
-			},
-			ctlrName: "nginx-gateway",
-			expected: false,
-		},
-		{
-			name: "exactly 16 ancestors, none from our controller",
-			ancestors: func() []v1alpha2.PolicyAncestorStatus {
-				ancestors := make([]v1alpha2.PolicyAncestorStatus, 16)
-				for i := range 16 {
-					ancestors[i] = getAncestorRef("other-controller", "gateway")
-				}
-				return ancestors
-			}(),
-			ctlrName: "nginx-gateway",
-			expected: true,
-		},
-		{
-			name: "exactly 16 ancestors, one from our controller",
-			ancestors: func() []v1alpha2.PolicyAncestorStatus {
-				ancestors := make([]v1alpha2.PolicyAncestorStatus, 16)
-				for i := range 15 {
-					ancestors[i] = getAncestorRef("other-controller", "gateway")
-				}
-				ancestors[15] = getAncestorRef("nginx-gateway", "our-gateway")
-				return ancestors
-			}(),
-			ctlrName: "nginx-gateway",
-			expected: false, // Not full because we can overwrite our own entry
-		},
-		{
-			name: "more than 16 ancestors, none from our controller",
-			ancestors: func() []v1alpha2.PolicyAncestorStatus {
-				ancestors := make([]v1alpha2.PolicyAncestorStatus, 20)
-				for i := range 20 {
-					ancestors[i] = getAncestorRef("other-controller", "gateway")
-				}
-				return ancestors
-			}(),
-			ctlrName: "nginx-gateway",
-			expected: true,
-		},
-		{
-			name: "more than 16 ancestors, one from our controller",
-			ancestors: func() []v1alpha2.PolicyAncestorStatus {
-				ancestors := make([]v1alpha2.PolicyAncestorStatus, 20)
-				for i := range 19 {
-					ancestors[i] = getAncestorRef("other-controller", "gateway")
-				}
-				ancestors[19] = getAncestorRef("nginx-gateway", "our-gateway")
-				return ancestors
-			}(),
-			ctlrName: "nginx-gateway",
-			expected: false, // Not full because we can overwrite our own entry
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-
-			result := backendTLSPolicyAncestorsFull(test.ancestors, test.ctlrName)
-			g.Expect(result).To(Equal(test.expected))
-		})
-	}
 }
 
 // testLogSink implements logr.LogSink for testing.
