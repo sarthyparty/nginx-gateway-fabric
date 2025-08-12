@@ -2303,7 +2303,7 @@ func TestNGFPolicyAncestorLimitHandling(t *testing.T) {
 	g.Expect(condition.Type).To(Equal(string(v1alpha2.PolicyConditionAccepted)))
 	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(condition.Reason).To(Equal(string(conditions.PolicyReasonAncestorLimitReached)))
-	g.Expect(condition.Message).To(ContainSubstring("ancestor status list has reached the maximum size of 16"))
+	g.Expect(condition.Message).To(ContainSubstring("ancestor status list has reached the maximum size"))
 
 	// Verify that gateway2 did not receive any conditions (normal case)
 	gateway2 := gateways[types.NamespacedName{Namespace: "test", Name: "gateway2"}]

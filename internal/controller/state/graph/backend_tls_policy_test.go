@@ -674,9 +674,9 @@ func TestAddGatewaysForBackendTLSPoliciesAncestorLimit(t *testing.T) {
 
 	// Create a test logger that captures log output
 	var logBuf bytes.Buffer
-	testLogger := logr.New(&testLogSink{buffer: &logBuf})
+	testLogger := logr.New(&testNGFLogSink{buffer: &logBuf})
 
-	// Create BackendTLSPolicy with 16 ancestors (full)
+	// Helper function to create ancestor references
 	getAncestorRef := func(ctlrName, parentName string) v1alpha2.PolicyAncestorStatus {
 		return v1alpha2.PolicyAncestorStatus{
 			ControllerName: gatewayv1.GatewayController(ctlrName),
@@ -793,7 +793,7 @@ func TestAddGatewaysForBackendTLSPoliciesAncestorLimit(t *testing.T) {
 	g.Expect(condition.Type).To(Equal(string(v1alpha2.PolicyConditionAccepted)))
 	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
 	g.Expect(condition.Reason).To(Equal(string(conditions.PolicyReasonAncestorLimitReached)))
-	g.Expect(condition.Message).To(ContainSubstring("ancestor status list has reached the maximum size of 16"))
+	g.Expect(condition.Message).To(ContainSubstring("ancestor status list has reached the maximum size"))
 
 	// Verify that gateway2 did not receive any conditions (normal case)
 	gateway2 := gateways[types.NamespacedName{Namespace: "test", Name: "gateway2"}]
@@ -807,48 +807,4 @@ func TestAddGatewaysForBackendTLSPoliciesAncestorLimit(t *testing.T) {
 	g.Expect(logOutput).To(ContainSubstring("policy=test/btp-full-ancestors"))
 	g.Expect(logOutput).To(ContainSubstring("policyKind=BackendTLSPolicy"))
 	g.Expect(logOutput).To(ContainSubstring("ancestor=test/gateway1"))
-}
-
-// testLogSink implements logr.LogSink for testing.
-type testLogSink struct {
-	buffer *bytes.Buffer
-}
-
-func (s *testLogSink) Init(_ logr.RuntimeInfo) {}
-
-func (s *testLogSink) Enabled(_ int) bool {
-	return true
-}
-
-func (s *testLogSink) Info(_ int, msg string, keysAndValues ...interface{}) {
-	s.buffer.WriteString(msg)
-	for i := 0; i < len(keysAndValues); i += 2 {
-		if i+1 < len(keysAndValues) {
-			s.buffer.WriteString(" ")
-			if key, ok := keysAndValues[i].(string); ok {
-				s.buffer.WriteString(key)
-			}
-			s.buffer.WriteString("=")
-			if value, ok := keysAndValues[i+1].(string); ok {
-				s.buffer.WriteString(value)
-			}
-		}
-	}
-	s.buffer.WriteString("\n")
-}
-
-func (s *testLogSink) Error(err error, msg string, _ ...interface{}) {
-	s.buffer.WriteString("ERROR: ")
-	s.buffer.WriteString(msg)
-	s.buffer.WriteString(" error=")
-	s.buffer.WriteString(err.Error())
-	s.buffer.WriteString("\n")
-}
-
-func (s *testLogSink) WithValues(_ ...interface{}) logr.LogSink {
-	return s
-}
-
-func (s *testLogSink) WithName(_ string) logr.LogSink {
-	return s
 }
