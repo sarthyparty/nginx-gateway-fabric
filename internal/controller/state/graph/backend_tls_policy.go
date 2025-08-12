@@ -195,10 +195,8 @@ func addPolicyAncestorLimitCondition(
 	policyName string,
 	policyType string,
 ) []conditions.Condition {
-	const policyAncestorLimitReachedType = "PolicyAncestorLimitReached"
-
 	for i, condition := range conds {
-		if condition.Type == policyAncestorLimitReachedType {
+		if condition.Reason == string(conditions.PolicyReasonAncestorLimitReached) {
 			if !strings.Contains(condition.Message, policyName) {
 				conds[i].Message = fmt.Sprintf("%s, %s %s", condition.Message, policyType, policyName)
 			}
