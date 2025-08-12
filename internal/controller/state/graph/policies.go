@@ -200,7 +200,7 @@ func attachPolicyToService(
 			policyKind := getPolicyKind(policy.Source)
 
 			gw.Conditions = addPolicyAncestorLimitCondition(gw.Conditions, policyName, policyKind)
-			LogAncestorLimitReached(logger, policyName, policyKind, gwNsName.String())
+			logAncestorLimitReached(logger, policyName, policyKind, gwNsName.String())
 
 			// Mark this gateway as invalid for the policy due to ancestor limits
 			policy.InvalidForGateways[gwNsName] = struct{}{}
@@ -248,7 +248,7 @@ func attachPolicyToRoute(
 		routeName := getAncestorName(ancestorRef)
 
 		route.Conditions = addPolicyAncestorLimitCondition(route.Conditions, policyName, policyKind)
-		LogAncestorLimitReached(logger, policyName, policyKind, routeName)
+		logAncestorLimitReached(logger, policyName, policyKind, routeName)
 
 		return
 	}
@@ -326,7 +326,7 @@ func attachPolicyToGateway(
 			// Log in the controller log.
 			logger.Info("Gateway target not found and ancestors slice is full.", "policy", policyName, "ancestor", ancestorName)
 		}
-		LogAncestorLimitReached(logger, policyName, policyKind, ancestorName)
+		logAncestorLimitReached(logger, policyName, policyKind, ancestorName)
 
 		policy.InvalidForGateways[ref.Nsname] = struct{}{}
 		return

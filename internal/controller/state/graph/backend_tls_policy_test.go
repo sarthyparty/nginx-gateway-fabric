@@ -800,7 +800,7 @@ func TestAddGatewaysForBackendTLSPoliciesAncestorLimit(t *testing.T) {
 	g.Expect(gateway2.Conditions).To(BeEmpty(), "Normal gateway should not have conditions")
 
 	// Verify logging function works - test the logging function directly
-	LogAncestorLimitReached(testLogger, "test/btp-full-ancestors", "BackendTLSPolicy", "test/gateway1")
+	logAncestorLimitReached(testLogger, "test/btp-full-ancestors", "BackendTLSPolicy", "test/gateway1")
 	logOutput := logBuf.String()
 
 	g.Expect(logOutput).To(ContainSubstring("Policy ancestor limit reached"))

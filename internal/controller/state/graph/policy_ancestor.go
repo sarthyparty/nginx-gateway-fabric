@@ -13,8 +13,8 @@ import (
 
 const maxAncestors = 16
 
-// LogAncestorLimitReached logs when a policy ancestor limit is reached.
-func LogAncestorLimitReached(logger logr.Logger, policyName, policyKind, ancestorName string) {
+// logAncestorLimitReached logs when a policy ancestor limit is reached.
+func logAncestorLimitReached(logger logr.Logger, policyName, policyKind, ancestorName string) {
 	logger.Info("Policy ancestor limit reached", "policy", policyName, "policyKind", policyKind, "ancestor", ancestorName)
 }
 

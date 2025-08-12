@@ -316,7 +316,7 @@ func addGatewaysForBackendTLSPolicies(
 						"Gateway not found in the graph", "policy", policyName, "ancestor", gatewayName)
 				}
 
-				LogAncestorLimitReached(logger, policyName, "BackendTLSPolicy", gatewayName)
+				logAncestorLimitReached(logger, policyName, "BackendTLSPolicy", gatewayName)
 				continue
 			}
 
