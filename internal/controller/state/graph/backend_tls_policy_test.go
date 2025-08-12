@@ -402,7 +402,7 @@ func TestValidateBackendTLSPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "valid case with many ancestors (ancestor limit now handled during gateway assignment)",
+			name: "valid case with many ancestors",
 			tlsPolicy: &v1alpha3.BackendTLSPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "tls-policy",

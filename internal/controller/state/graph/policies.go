@@ -98,9 +98,9 @@ func collectOrderedGatewaysForService(
 	svc *ReferencedService,
 	gateways map[types.NamespacedName]*Gateway,
 	existingNGFGatewayAncestors map[types.NamespacedName]struct{},
-) (existingGateways []types.NamespacedName, newGateways []types.NamespacedName) {
-	existingGateways = make([]types.NamespacedName, 0, len(svc.GatewayNsNames))
-	newGateways = make([]types.NamespacedName, 0, len(svc.GatewayNsNames))
+) []types.NamespacedName {
+	existingGateways := make([]types.NamespacedName, 0, len(svc.GatewayNsNames))
+	newGateways := make([]types.NamespacedName, 0, len(svc.GatewayNsNames))
 
 	for gwNsName := range svc.GatewayNsNames {
 		if _, exists := existingNGFGatewayAncestors[gwNsName]; exists {
@@ -113,7 +113,8 @@ func collectOrderedGatewaysForService(
 	sortGatewaysByCreationTime(existingGateways, gateways)
 	sortGatewaysByCreationTime(newGateways, gateways)
 
-	return existingGateways, newGateways
+	existingGateways = append(existingGateways, newGateways...)
+	return existingGateways
 }
 
 func (g *Graph) attachPolicies(validator validation.PolicyValidator, ctlrName string, logger logr.Logger) {
@@ -158,11 +159,7 @@ func attachPolicyToService(
 	existingNGFGatewayAncestors := extractExistingNGFGatewayAncestorsForPolicy(policy, ctlrName)
 
 	// Collect and order gateways with existing gateway prioritization
-	existingGateways, newGateways := collectOrderedGatewaysForService(
-		svc, gws, existingNGFGatewayAncestors)
-
-	existingGateways = append(existingGateways, newGateways...)
-	orderedGateways := existingGateways
+	orderedGateways := collectOrderedGatewaysForService(svc, gws, existingNGFGatewayAncestors)
 
 	for _, gwNsName := range orderedGateways {
 		gw := gws[gwNsName]

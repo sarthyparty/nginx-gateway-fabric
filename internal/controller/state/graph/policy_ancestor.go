@@ -83,10 +83,7 @@ func parentRefEqual(ref1, ref2 v1.ParentReference) bool {
 	return true
 }
 
-// Helper functions to eliminate code duplication
-
-// getAncestorName generates a human-readable name for an ancestor from a ParentReference.
-// Returns namespace/name format if namespace is specified, otherwise just name.
+// getAncestorName returns namespace/name format if namespace is specified, otherwise just name.
 func getAncestorName(ancestorRef v1.ParentReference) string {
 	ancestorName := string(ancestorRef.Name)
 	if ancestorRef.Namespace != nil {
@@ -95,15 +92,14 @@ func getAncestorName(ancestorRef v1.ParentReference) string {
 	return ancestorName
 }
 
-// getPolicyName generates a human-readable name for a policy in namespace/name format.
+// getPolicyName returns a human-readable name for a policy in namespace/name format.
 func getPolicyName(policy policies.Policy) string {
 	return policy.GetNamespace() + "/" + policy.GetName()
 }
 
-// getPolicyKind returns the policy kind with defensive programming for test environments.
-// Returns "Policy" as fallback if GetObjectKind() returns nil.
+// getPolicyKind returns the policy kind or "Policy" if GetObjectKind() returns nil.
 func getPolicyKind(policy policies.Policy) string {
-	policyKind := "Policy" // Default fallback
+	policyKind := "Policy"
 	if objKind := policy.GetObjectKind(); objKind != nil {
 		policyKind = objKind.GroupVersionKind().Kind
 	}
