@@ -2037,17 +2037,15 @@ func TestNGFPolicyAncestorsFullFunc(t *testing.T) {
 
 	tests := []struct {
 		name                string
-		ctlrName            string
 		currentAncestors    []v1alpha2.PolicyAncestorStatus
 		updatedAncestorsLen int
-		expected            bool
+		expectFull          bool
 	}{
 		{
 			name:                "empty current ancestors, no updated ancestors",
 			currentAncestors:    []v1alpha2.PolicyAncestorStatus{},
 			updatedAncestorsLen: 0,
-			ctlrName:            "nginx-gateway",
-			expected:            false,
+			expectFull:          false,
 		},
 		{
 			name: "less than 16 total (current + updated)",
@@ -2056,8 +2054,7 @@ func TestNGFPolicyAncestorsFullFunc(t *testing.T) {
 				getAncestorRef("other-controller", "gateway2"),
 			},
 			updatedAncestorsLen: 2,
-			ctlrName:            "nginx-gateway",
-			expected:            false,
+			expectFull:          false,
 		},
 		{
 			name: "exactly 16 non-NGF ancestors, no updated ancestors",
@@ -2069,8 +2066,7 @@ func TestNGFPolicyAncestorsFullFunc(t *testing.T) {
 				return ancestors
 			}(),
 			updatedAncestorsLen: 1, // Trying to add 1 NGF ancestor
-			ctlrName:            "nginx-gateway",
-			expected:            true,
+			expectFull:          true,
 		},
 		{
 			name: "15 non-NGF + 1 NGF ancestor, adding 1 more NGF ancestor",
@@ -2083,8 +2079,7 @@ func TestNGFPolicyAncestorsFullFunc(t *testing.T) {
 				return ancestors
 			}(),
 			updatedAncestorsLen: 1,
-			ctlrName:            "nginx-gateway",
-			expected:            true, // Full because 15 non-NGF + 1 new NGF = 16 which is the limit
+			expectFull:          true, // Full because 15 non-NGF + 1 new NGF = 16 which is the limit
 		},
 		{
 			name: "10 non-NGF ancestors, trying to add 7 NGF ancestors (would exceed 16)",
@@ -2096,8 +2091,7 @@ func TestNGFPolicyAncestorsFullFunc(t *testing.T) {
 				return ancestors
 			}(),
 			updatedAncestorsLen: 7,
-			ctlrName:            "nginx-gateway",
-			expected:            true,
+			expectFull:          true,
 		},
 		{
 			name: "5 non-NGF + 5 NGF ancestors, trying to add 6 more NGF ancestors",
@@ -2112,8 +2106,7 @@ func TestNGFPolicyAncestorsFullFunc(t *testing.T) {
 				return ancestors
 			}(),
 			updatedAncestorsLen: 6,
-			ctlrName:            "nginx-gateway",
-			expected:            false, // 5 non-NGF + 6 new NGF = 11 total (within limit)
+			expectFull:          false, // 5 non-NGF + 6 new NGF = 11 total (within limit)
 		},
 	}
 
@@ -2131,8 +2124,8 @@ func TestNGFPolicyAncestorsFullFunc(t *testing.T) {
 				})
 			}
 
-			result := ngfPolicyAncestorsFull(policy, test.ctlrName)
-			g.Expect(result).To(Equal(test.expected))
+			result := ngfPolicyAncestorsFull(policy, "nginx-gateway")
+			g.Expect(result).To(Equal(test.expectFull))
 		})
 	}
 }
@@ -2146,7 +2139,7 @@ func TestNGFPolicyAncestorLimitHandling(t *testing.T) {
 
 	policyGVK := schema.GroupVersionKind{Group: "Group", Version: "Version", Kind: "TestPolicy"}
 
-	// Create a policy with 16 non-NGF ancestors (ancestor limit reached)
+	// Helper function to create ancestor references
 	getAncestorRef := func(ctlrName, parentName string) v1alpha2.PolicyAncestorStatus {
 		return v1alpha2.PolicyAncestorStatus{
 			ControllerName: v1.GatewayController(ctlrName),
