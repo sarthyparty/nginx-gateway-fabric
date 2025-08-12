@@ -2356,22 +2356,42 @@ func (s *testNGFLogSink) WithName(_ string) logr.LogSink {
 
 // createPolicyWithExistingGatewayStatus creates a fake policy with a gateway in its status ancestors.
 func createPolicyWithExistingGatewayStatus(gatewayNsName types.NamespacedName, controllerName string) policies.Policy {
-	fakePolicy := &policiesfakes.FakePolicy{
-		GetPolicyStatusStub: func() v1alpha2.PolicyStatus {
-			return v1alpha2.PolicyStatus{
-				Ancestors: []v1alpha2.PolicyAncestorStatus{
-					{
-						ControllerName: v1.GatewayController(controllerName),
-						AncestorRef: v1.ParentReference{
-							Group:     helpers.GetPointer[v1.Group](v1.GroupName),
-							Kind:      helpers.GetPointer[v1.Kind](kinds.Gateway),
-							Namespace: (*v1.Namespace)(&gatewayNsName.Namespace),
-							Name:      v1.ObjectName(gatewayNsName.Name),
-						},
-					},
-				},
-			}
+	ancestors := []v1alpha2.PolicyAncestorStatus{
+		{
+			ControllerName: v1.GatewayController(controllerName),
+			AncestorRef: v1.ParentReference{
+				Group:     helpers.GetPointer[v1.Group](v1.GroupName),
+				Kind:      helpers.GetPointer[v1.Kind](kinds.Gateway),
+				Namespace: (*v1.Namespace)(&gatewayNsName.Namespace),
+				Name:      v1.ObjectName(gatewayNsName.Name),
+			},
 		},
 	}
-	return fakePolicy
+	return createFakePolicyWithAncestors("test-policy", "test", ancestors)
+}
+
+// createFakePolicy creates a basic fake policy with common defaults.
+func createFakePolicy(name, namespace string) *policiesfakes.FakePolicy {
+	return &policiesfakes.FakePolicy{
+		GetNameStub:      func() string { return name },
+		GetNamespaceStub: func() string { return namespace },
+		GetPolicyStatusStub: func() v1alpha2.PolicyStatus {
+			return v1alpha2.PolicyStatus{}
+		},
+		GetTargetRefsStub: func() []v1alpha2.LocalPolicyTargetReference {
+			return []v1alpha2.LocalPolicyTargetReference{}
+		},
+	}
+}
+
+// createFakePolicyWithAncestors creates a fake policy with specific ancestors.
+func createFakePolicyWithAncestors(
+	name, namespace string,
+	ancestors []v1alpha2.PolicyAncestorStatus,
+) *policiesfakes.FakePolicy {
+	policy := createFakePolicy(name, namespace)
+	policy.GetPolicyStatusStub = func() v1alpha2.PolicyStatus {
+		return v1alpha2.PolicyStatus{Ancestors: ancestors}
+	}
+	return policy
 }
