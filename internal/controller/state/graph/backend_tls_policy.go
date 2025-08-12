@@ -216,8 +216,10 @@ func collectOrderedGateways(
 	services map[types.NamespacedName]*ReferencedService,
 	gateways map[types.NamespacedName]*Gateway,
 	existingNGFGatewayAncestors map[types.NamespacedName]struct{},
-) (existingGateways []types.NamespacedName, newGateways []types.NamespacedName) {
+) []types.NamespacedName {
 	seenGateways := make(map[types.NamespacedName]struct{})
+	existingGateways := make([]types.NamespacedName, 0)
+	newGateways := make([]types.NamespacedName, 0)
 
 	// Process services in spec order to maintain deterministic gateway ordering
 	for _, refs := range policy.Spec.TargetRefs {
@@ -252,7 +254,8 @@ func collectOrderedGateways(
 	sortGatewaysByCreationTime(existingGateways, gateways)
 	sortGatewaysByCreationTime(newGateways, gateways)
 
-	return existingGateways, newGateways
+	existingGateways = append(existingGateways, newGateways...)
+	return existingGateways
 }
 
 func extractExistingNGFGatewayAncestors(
@@ -288,11 +291,12 @@ func addGatewaysForBackendTLSPolicies(
 ) {
 	for _, backendTLSPolicy := range backendTLSPolicies {
 		existingNGFGatewayAncestors := extractExistingNGFGatewayAncestors(backendTLSPolicy.Source, ctlrName)
-		existingGateways, newGateways := collectOrderedGateways(
-			backendTLSPolicy.Source, services, gateways, existingNGFGatewayAncestors)
-
-		existingGateways = append(existingGateways, newGateways...)
-		orderedGateways := existingGateways
+		orderedGateways := collectOrderedGateways(
+			backendTLSPolicy.Source,
+			services,
+			gateways,
+			existingNGFGatewayAncestors,
+		)
 
 		ancestorCount := countNonNGFAncestors(backendTLSPolicy.Source, ctlrName)
 
