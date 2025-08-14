@@ -7,7 +7,6 @@ import (
 	"github.com/go-logr/logr/testr"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	v1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -15,6 +14,7 @@ import (
 
 	ngfAPIv1alpha2 "github.com/nginx/nginx-gateway-fabric/v2/apis/v1alpha2"
 	"github.com/nginx/nginx-gateway-fabric/v2/internal/controller/nginx/config/policies"
+	"github.com/nginx/nginx-gateway-fabric/v2/internal/controller/nginx/config/policies/policiesfakes"
 	"github.com/nginx/nginx-gateway-fabric/v2/internal/framework/kinds"
 )
 
@@ -278,64 +278,12 @@ func TestGetAncestorName(t *testing.T) {
 	}
 }
 
-type mockPolicy struct {
-	name      string
-	namespace string
-	kind      string
-}
-
-func (m *mockPolicy) GetName() string               { return m.name }
-func (m *mockPolicy) SetName(name string)           { m.name = name }
-func (m *mockPolicy) GetNamespace() string          { return m.namespace }
-func (m *mockPolicy) SetNamespace(namespace string) { m.namespace = namespace }
-func (m *mockPolicy) GetObjectKind() schema.ObjectKind {
-	if m.kind == "" {
-		return nil
-	}
-	return &mockObjectKind{kind: m.kind}
-}
-func (m *mockPolicy) GetTargetRefs() []v1alpha2.LocalPolicyTargetReference { return nil }
-func (m *mockPolicy) GetPolicyStatus() v1alpha2.PolicyStatus               { return v1alpha2.PolicyStatus{} }
-func (m *mockPolicy) SetPolicyStatus(_ v1alpha2.PolicyStatus)              {}
-func (m *mockPolicy) DeepCopyObject() runtime.Object                       { return m }
-func (m *mockPolicy) GetUID() types.UID                                    { return "" }
-func (m *mockPolicy) GetResourceVersion() string                           { return "" }
-func (m *mockPolicy) SetUID(_ types.UID)                                   {}
-func (m *mockPolicy) SetResourceVersion(_ string)                          {}
-func (m *mockPolicy) GetGeneration() int64                                 { return 0 }
-func (m *mockPolicy) SetGeneration(_ int64)                                {}
-func (m *mockPolicy) GetCreationTimestamp() metav1.Time                    { return metav1.Time{} }
-func (m *mockPolicy) SetCreationTimestamp(_ metav1.Time)                   {}
-func (m *mockPolicy) GetDeletionTimestamp() *metav1.Time                   { return nil }
-func (m *mockPolicy) SetDeletionTimestamp(_ *metav1.Time)                  {}
-func (m *mockPolicy) GetDeletionGracePeriodSeconds() *int64                { return nil }
-func (m *mockPolicy) SetDeletionGracePeriodSeconds(*int64)                 {}
-func (m *mockPolicy) GetLabels() map[string]string                         { return nil }
-func (m *mockPolicy) SetLabels(_ map[string]string)                        {}
-func (m *mockPolicy) GetAnnotations() map[string]string                    { return nil }
-func (m *mockPolicy) SetAnnotations(_ map[string]string)                   {}
-func (m *mockPolicy) GetFinalizers() []string                              { return nil }
-func (m *mockPolicy) SetFinalizers(_ []string)                             {}
-func (m *mockPolicy) GetOwnerReferences() []metav1.OwnerReference          { return nil }
-func (m *mockPolicy) SetOwnerReferences([]metav1.OwnerReference)           {}
-func (m *mockPolicy) GetManagedFields() []metav1.ManagedFieldsEntry        { return nil }
-func (m *mockPolicy) SetManagedFields(_ []metav1.ManagedFieldsEntry)       {}
-func (m *mockPolicy) GetGenerateName() string                              { return "" }
-func (m *mockPolicy) SetGenerateName(_ string)                             {}
-func (m *mockPolicy) GetSelfLink() string                                  { return "" }
-func (m *mockPolicy) SetSelfLink(_ string)                                 {}
-
-type mockObjectKind struct{ kind string }
-
-func (m *mockObjectKind) GroupVersionKind() schema.GroupVersionKind {
-	return schema.GroupVersionKind{Kind: m.kind}
-}
-func (m *mockObjectKind) SetGroupVersionKind(_ schema.GroupVersionKind) {}
-
 func TestGetPolicyName(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
-	policy := &mockPolicy{name: "test-policy", namespace: "test-ns"}
+	policy := &policiesfakes.FakePolicy{}
+	policy.GetNameReturns("test-policy")
+	policy.GetNamespaceReturns("test-ns")
 	g.Expect(getPolicyName(policy)).To(Equal("test-ns/test-policy"))
 }
 
@@ -343,17 +291,27 @@ func TestGetPolicyKind(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
-		policy   policies.Policy
+		setup    func() policies.Policy
 		expected string
 	}{
 		{
-			name:     "with kind",
-			policy:   &mockPolicy{kind: "TestPolicy"},
+			name: "with kind",
+			setup: func() policies.Policy {
+				policy := &policiesfakes.FakePolicy{}
+				objectKind := &policiesfakes.FakeObjectKind{}
+				objectKind.GroupVersionKindReturns(schema.GroupVersionKind{Kind: "TestPolicy"})
+				policy.GetObjectKindReturns(objectKind)
+				return policy
+			},
 			expected: "TestPolicy",
 		},
 		{
-			name:     "without kind",
-			policy:   &mockPolicy{},
+			name: "without kind",
+			setup: func() policies.Policy {
+				policy := &policiesfakes.FakePolicy{}
+				policy.GetObjectKindReturns(nil)
+				return policy
+			},
 			expected: "Policy",
 		},
 	}
@@ -362,7 +320,8 @@ func TestGetPolicyKind(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
-			g.Expect(getPolicyKind(test.policy)).To(Equal(test.expected))
+			policy := test.setup()
+			g.Expect(getPolicyKind(policy)).To(Equal(test.expected))
 		})
 	}
 }
