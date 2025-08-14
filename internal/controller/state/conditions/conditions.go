@@ -979,12 +979,12 @@ func NewPolicyTargetNotFound(msg string) Condition {
 
 // NewPolicyAncestorLimitReached returns a Condition that indicates that the Policy is not accepted because
 // the ancestor status list has reached the maximum size of 16.
-func NewPolicyAncestorLimitReached() Condition {
+func NewPolicyAncestorLimitReached(policyType string, policyName string) Condition {
 	return Condition{
 		Type:    string(v1alpha2.PolicyConditionAccepted),
 		Status:  metav1.ConditionFalse,
 		Reason:  string(PolicyReasonAncestorLimitReached),
-		Message: PolicyMessageAncestorLimitReached,
+		Message: fmt.Sprintf("%s %s %s", PolicyMessageAncestorLimitReached, policyType, policyName),
 	}
 }
 

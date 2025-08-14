@@ -204,8 +204,7 @@ func addPolicyAncestorLimitCondition(
 		}
 	}
 
-	newCondition := conditions.NewPolicyAncestorLimitReached()
-	newCondition.Message = fmt.Sprintf("%s %s %s", newCondition.Message, policyType, policyName)
+	newCondition := conditions.NewPolicyAncestorLimitReached(policyType, policyName)
 	return append(conds, newCondition)
 }
 

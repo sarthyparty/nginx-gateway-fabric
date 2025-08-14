@@ -2304,8 +2304,8 @@ func TestNGFPolicyAncestorLimitHandling(t *testing.T) {
 
 	// Verify logging occurred
 	logOutput := logBuf.String()
-	g.Expect(logOutput).To(ContainSubstring("Policy ancestor limit reached"))
-	g.Expect(logOutput).To(ContainSubstring("policy=test/policy-full-ancestors"))
+	g.Expect(logOutput).To(ContainSubstring("Policy ancestor limit reached for test/policy-full-ancestors"))
+	g.Expect(logOutput).To(ContainSubstring("test/policy-full-ancestors"))
 	g.Expect(logOutput).To(ContainSubstring("policyKind=TestPolicy"))
 	g.Expect(logOutput).To(ContainSubstring("ancestor=test/gateway1"))
 }
