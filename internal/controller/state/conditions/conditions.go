@@ -144,7 +144,7 @@ const (
 	PolicyReasonAncestorLimitReached v1alpha2.PolicyConditionReason = "AncestorLimitReached"
 
 	// PolicyMessageAncestorLimitReached is a message used with PolicyReasonAncestorLimitReached
-	// when a policy cannot be applied due to the 16 ancestor limit being reached.
+	// when a policy cannot be applied due to the ancestor limit being reached.
 	PolicyMessageAncestorLimitReached = "Policies cannot be applied because the ancestor status list " +
 		"has reached the maximum size. The following policies have been ignored:"
 )
