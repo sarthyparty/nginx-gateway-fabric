@@ -113,8 +113,7 @@ func collectOrderedGatewaysForService(
 	sortGatewaysByCreationTime(existingGateways, gateways)
 	sortGatewaysByCreationTime(newGateways, gateways)
 
-	existingGateways = append(existingGateways, newGateways...)
-	return existingGateways
+	return append(existingGateways, newGateways...)
 }
 
 func (g *Graph) attachPolicies(validator validation.PolicyValidator, ctlrName string, logger logr.Logger) {

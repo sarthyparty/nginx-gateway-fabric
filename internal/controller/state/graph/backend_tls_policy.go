@@ -206,8 +206,7 @@ func addPolicyAncestorLimitCondition(
 
 	newCondition := conditions.NewPolicyAncestorLimitReached()
 	newCondition.Message = fmt.Sprintf("%s %s %s", newCondition.Message, policyType, policyName)
-	conds = append(conds, newCondition)
-	return conds
+	return append(conds, newCondition)
 }
 
 // collectOrderedGateways collects gateways in spec order (services) then creation time order (gateways within service).
@@ -254,8 +253,7 @@ func collectOrderedGateways(
 	sortGatewaysByCreationTime(existingGateways, gateways)
 	sortGatewaysByCreationTime(newGateways, gateways)
 
-	existingGateways = append(existingGateways, newGateways...)
-	return existingGateways
+	return append(existingGateways, newGateways...)
 }
 
 func extractExistingNGFGatewayAncestors(
